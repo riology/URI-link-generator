@@ -34,6 +34,10 @@ link-generator/
 │   └── styles.css           # Stylesheet
 ├── src/
 │   └── vpnCore.js           # Universal (Node + Browser) parser & config generator
+├── worker/                  # Cloudflare Worker API (public subscription URLs)
+│   ├── src/index.js
+│   ├── test.js
+│   └── wrangler.toml
 ├── cli.js                   # Command-line interface
 ├── server.js                # Express server & live /sub/:id endpoints
 ├── test.js                  # Automated test suite
@@ -79,14 +83,39 @@ When running `npm start`, the server exposes live subscription URLs:
 - `/sub/default?target=xray-json` — Full Xray-core JSON config
 - `/sub/default?target=raw` — Plain-text normalized share URIs
 
-## Deploying to GitHub Pages
+## Deploying publicly (GitHub Pages + Cloudflare Worker)
 
-This repository includes `.github/workflows/deploy.yml` for automatic deployment:
+GitHub Pages only serves static files, so it cannot host live subscription URLs. The frontend runs on GitHub Pages, and a free Cloudflare Worker with KV storage serves `/sub/:id`.
 
-1. Push the repository to GitHub on the `main` branch.
-2. Go to **Settings → Pages** in your GitHub repository.
-3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-4. The workflow will automatically sync `src/vpnCore.js` to `public/vendor/vpnCore.js` and deploy `./public` to GitHub Pages.
+### 1. Deploy the Worker API (one time)
+
+```bash
+cd worker
+npm install
+npx wrangler login                          # opens browser to sign in to Cloudflare
+npx wrangler kv namespace create SUBS       # copy the printed id
+# paste the id into worker/wrangler.toml -> [[kv_namespaces]] id = "..."
+npx wrangler deploy                         # prints https://uri-link-generator-api.<you>.workers.dev
+```
+
+### 2. Point the frontend at the Worker
+
+1. In GitHub open **Settings → Secrets and variables → Actions → Variables**.
+2. Add a repository variable `API_BASE` with your Worker URL (no trailing slash).
+
+### 3. Deploy GitHub Pages
+
+1. **Settings → Pages → Source: GitHub Actions**.
+2. Push to `main` or run **Actions → Deploy to GitHub Pages → Run workflow**.
+3. The site is published at `https://<user>.github.io/<repo>/`.
+
+Without `API_BASE` the site still works in static mode, with parsing and exports done in the browser but no subscription URLs.
+
+### How subscriptions are protected
+
+- Each browser gets a random subscription ID and a secret edit token stored in `localStorage`.
+- The Worker stores only a SHA-256 hash of the token, so nobody else can overwrite your subscription.
+- Anyone who has the subscription URL can use the nodes in it, so share it only with people you trust.
 
 ## License
 

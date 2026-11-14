@@ -30,6 +30,11 @@ jobs:
       - name: Sync client core bundle
         run: npm run build
 
+      - name: Write runtime config (API_BASE repository variable)
+        run: |
+          echo "window.APP_CONFIG = { apiBase: '${{ vars.API_BASE }}' };" > public/config.js
+          cat public/config.js
+
       - name: Add .nojekyll for GitHub Pages
         run: touch public/.nojekyll
 

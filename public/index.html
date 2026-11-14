@@ -144,7 +144,7 @@
                 <span class="url-hint">Excludes incompatible xhttp nodes</span>
               </div>
               <div class="url-input-group">
-                <input type="text" id="urlSingBoxSub" readonly />
+                <input type="text" id="urlSingBoxSub" readonly placeholder="Click Generate to create link" />
                 <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxSub">Copy</button>
                 <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlSingBoxSub" data-qr-label="Hiddify / Sing-box Subscription">QR</button>
               </div>
@@ -156,7 +156,7 @@
                 <span class="url-hint">Includes Reality, Vision, xhttp, gRPC, SS</span>
               </div>
               <div class="url-input-group">
-                <input type="text" id="urlXraySub" readonly />
+                <input type="text" id="urlXraySub" readonly placeholder="Click Generate to create link" />
                 <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlXraySub">Copy</button>
                 <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlXraySub" data-qr-label="Xray-core / v2rayNG Subscription">QR</button>
               </div>
@@ -168,7 +168,7 @@
                 <span class="url-hint">Selector and URL-test outbounds</span>
               </div>
               <div class="url-input-group">
-                <input type="text" id="urlSingBoxJson" readonly />
+                <input type="text" id="urlSingBoxJson" readonly placeholder="Click Generate to create link" />
                 <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxJson">Copy</button>
               </div>
             </div>
@@ -365,6 +365,7 @@
   <!-- Toast Notification -->
   <div id="toast" class="toast hidden">Copied to clipboard</div>
 
+  <script src="./config.js"></script>
   <script src="./vendor/vpnCore.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="./app.js"></script>

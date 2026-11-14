@@ -1,0 +1,12 @@
+name = "uri-link-generator-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "SUBS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# Comma-separated list of origins allowed to call the API from a browser.
+ALLOWED_ORIGINS = "https://riology.github.io"

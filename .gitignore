@@ -21,3 +21,8 @@ desktop.ini
 *.swp
 *.swo
 
+
+# Cloudflare Worker
+worker/node_modules/
+.wrangler/
+
