@@ -136,7 +136,9 @@ function parseLocally(payload) {
     universalSub: result.outputs.base64,
     singBoxSub: sbResult.outputs.base64,
     xraySub: xrayResult.outputs.base64,
-    singBoxJsonUrl: 'Local static mode — use Sing-box JSON tab or Download button',
+    singBoxJsonUrl: result.nodes.length
+      ? `data:application/json;base64,${window.VpnCore.safeBase64Encode(sbResult.outputs.singBoxJson)}`
+      : '',
     hiddifyDeepLink: '#static-mode',
     v2rayNgDeepLink: '#static-mode',
   };
@@ -508,14 +510,28 @@ async function refreshModalPreview() {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
-  const handleDeepLinkClick = (e) => {
+  const handleHiddifyClick = (e) => {
     if (state.staticMode || e.currentTarget.getAttribute('href') === '#static-mode') {
       e.preventDefault();
-      showToast('Live deep-links require the local Node server (npm start). Copy Base64 or JSON from the tabs below!');
+      if (state.urls.singBoxSub) {
+        copyText(state.urls.singBoxSub, 'Sing-box Base64 copied — in Hiddify tap + → Add from clipboard');
+      } else {
+        showToast('Paste VPN links or use Build node first');
+      }
     }
   };
-  btnHiddifyDeepLinkEl.addEventListener('click', handleDeepLinkClick);
-  btnV2rayDeepLinkEl.addEventListener('click', handleDeepLinkClick);
+  const handleV2rayClick = (e) => {
+    if (state.staticMode || e.currentTarget.getAttribute('href') === '#static-mode') {
+      e.preventDefault();
+      if (state.urls.xraySub) {
+        copyText(state.urls.xraySub, 'Xray Base64 copied — in v2rayNG tap + → Import from clipboard');
+      } else {
+        showToast('Paste VPN links or use Build node first');
+      }
+    }
+  };
+  btnHiddifyDeepLinkEl.addEventListener('click', handleHiddifyClick);
+  btnV2rayDeepLinkEl.addEventListener('click', handleV2rayClick);
 
   // Detect server vs static/GitHub Pages mode
   try {
@@ -535,6 +551,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('btnGenerate').addEventListener('click', () => {
+    if (!rawInputEl.value.trim()) {
+      showToast('Paste VPN links or Base64 above, or click Build node');
+      return;
+    }
     generateAndParse();
     showToast('Links and subscription updated');
   });
