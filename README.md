@@ -1,6 +1,8 @@
 <div align="center">
 
 # ⚡ URI Link & Subscription Generator
+![Banner Alt Text](sr/IMG_20261114_201853.png)
+
 
 **Turn raw proxy URIs, Base64 blobs, or JSON configs into clean, live subscription links & QR codes — in one click.**
 
