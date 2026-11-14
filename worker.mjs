@@ -1,11 +1,13 @@
-const zlib = require('zlib');
+import zlib from 'node:zlib';
+import vpnCore from './src/vpnCore.js';
+
 const {
   safeBase64Encode,
   toShareUri,
   processRawInput,
-} = require('./src/vpnCore');
+} = vpnCore;
 
-// In-memory store for /sub/default or short IDs within the active isolate
+// In-memory store for /sub/default within the active isolate
 const memoryStore = new Map();
 
 function encodeSubToken(rawUris, name = 'VPN Subscription') {
@@ -54,7 +56,7 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-module.exports = {
+export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, '') || '/';
@@ -93,8 +95,6 @@ module.exports = {
           renumberRemarks,
         });
 
-        // Normalize all nodes (with dedup/prefix/renumber applied) so the stateless token
-        // works for both ?target=singbox and ?target=xray on /sub/:token
         const normalizedAll = processRawInput(rawInput, {
           targetCore: 'all',
           deduplicate,

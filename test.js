@@ -1,7 +1,6 @@
 const assert = require('assert');
 const http = require('http');
 const app = require('./server');
-const worker = require('./worker');
 const { processRawInput, safeBase64Encode, safeBase64Decode } = require('./src/vpnCore');
 
 const USER_RAW_SAMPLE = `vless://d9274255-edf4-4944-bc62-6ef35cd2de40@194.87.109.106:443?security=tls&alpn=h2,http/1.1&encryption=none&insecure=0&headerType=none&fp=chrome&type=tcp&allowInsecure=0&sni=currant.asynchronous.site#mlmvpn2406
@@ -94,6 +93,7 @@ async function runTests() {
   }
 
   console.log('5. Testing Cloudflare Worker stateless subscription link...');
+  const { default: worker } = await import('./worker.mjs');
   const workerParseRes = await worker.fetch(
     new Request('https://vpn.example.workers.dev/api/parse', {
       method: 'POST',
