@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Runtime local subscription store
+data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment & OS files
+.env
+.env.local
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+

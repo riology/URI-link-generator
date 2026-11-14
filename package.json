@@ -1,0 +1,34 @@
+{
+  "name": "link-generator",
+  "version": "1.0.0",
+  "description": "VPN Link & Subscription Generator for Hiddify, Sing-box, and Xray-core (V2Ray)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node -e \"const fs=require('fs');fs.mkdirSync('public/vendor',{recursive:true});fs.copyFileSync('src/vpnCore.js','public/vendor/vpnCore.js');\"",
+    "test": "node test.js",
+    "cli": "node cli.js"
+  },
+  "keywords": [
+    "vpn",
+    "vless",
+    "vmess",
+    "shadowsocks",
+    "trojan",
+    "hysteria2",
+    "tuic",
+    "sing-box",
+    "xray",
+    "hiddify",
+    "v2ray",
+    "subscription"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VPN Link &amp; Subscription Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="logo-badge" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="18" cy="6" r="3" />
+          <circle cx="12" cy="18" r="3" />
+          <path d="M8.5 7.5 11 15.5" />
+          <path d="M15.5 7.5 13 15.5" />
+        </svg>
+      </div>
+      <div>
+        <h1>VPN Link &amp; Subscription Generator</h1>
+        <p class="subtitle">Parse, normalize, and export subscriptions for Hiddify, Sing-box, and Xray-core</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="btnNewNodeModal" class="btn btn-outline">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Build node</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Stats Summary Strip -->
+    <section class="stats-bar" id="statsBar">
+      <div class="stat-pill">
+        <span class="stat-label">Detected format</span>
+        <span class="stat-value" id="statInputType">—</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Active nodes</span>
+        <span class="stat-value highlight" id="statActiveCount">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Sing-box ready</span>
+        <span class="stat-value success" id="statSingBoxCount">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Xray-only (xhttp)</span>
+        <span class="stat-value warning" id="statXrayOnlyCount">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Auto-fixes applied</span>
+        <span class="stat-value info" id="statFixesCount">0</span>
+      </div>
+    </section>
+
+    <!-- Main 2-Column Workspace -->
+    <div class="workspace-grid">
+      <!-- Left Column: Input & Controls -->
+      <section class="card input-card">
+        <div class="card-header">
+          <h2>Input &amp; filter</h2>
+          <button id="btnClearInput" class="btn btn-ghost btn-sm">Clear</button>
+        </div>
+        <p class="helper-text">
+          Paste multi-line links (<code>vless://</code>, <code>ss://</code>, <code>vmess://</code>, <code>trojan://</code>, <code>hy2://</code>, <code>tuic://</code>), Base64 subscriptions, mixed text, or Xray/Sing-box JSON.
+        </p>
+
+        <textarea
+          id="rawInput"
+          class="code-textarea"
+          rows="11"
+          placeholder="Paste raw links, Base64 subscription, or JSON config"
+          spellcheck="false"
+        ></textarea>
+
+        <!-- Filtering & Normalization Controls -->
+        <div class="controls-panel">
+          <div class="control-group">
+            <label class="control-label">Target core compatibility</label>
+            <div class="segmented-control" id="coreFilterGroup">
+              <button type="button" class="seg-btn active" data-core="all">
+                All nodes
+              </button>
+              <button type="button" class="seg-btn" data-core="singbox">
+                Sing-box / Hiddify
+              </button>
+              <button type="button" class="seg-btn" data-core="xray">
+                Xray-core (incl. xhttp)
+              </button>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <div class="control-field">
+              <label for="subNameInput">Profile name</label>
+              <input type="text" id="subNameInput" value="My VPN Profile" placeholder="e.g. Hiddify Main" />
+            </div>
+            <div class="control-field">
+              <label for="remarkPrefixInput">Bulk remark prefix (optional)</label>
+              <input type="text" id="remarkPrefixInput" value="" placeholder="e.g. Fast" />
+            </div>
+          </div>
+
+          <div class="checkbox-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkDeduplicate" checked />
+              <span>Deduplicate identical nodes</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkRenumber" />
+              <span>Renumber remarks (#01, #02)</span>
+            </label>
+          </div>
+
+          <button id="btnGenerate" class="btn btn-primary btn-block">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Generate links &amp; update subscription</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Right Column: Generated Subscription Links, QR & Outputs -->
+      <section class="card output-card">
+        <div class="card-header">
+          <h2>Subscription &amp; export</h2>
+          <span class="live-badge" id="modeBadge">
+            <span class="status-dot" id="modeDot"></span>
+            <span id="modeBadgeText">Checking mode</span>
+          </span>
+        </div>
+
+        <!-- Subscription URLs & QR Box -->
+        <div class="sub-box">
+          <div class="sub-links-col">
+            <div class="url-item">
+              <div class="url-item-header">
+                <span class="badge badge-singbox">Hiddify / Sing-box</span>
+                <span class="url-hint">Excludes incompatible xhttp nodes</span>
+              </div>
+              <div class="url-input-group">
+                <input type="text" id="urlSingBoxSub" readonly />
+                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxSub">Copy</button>
+                <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlSingBoxSub" data-qr-label="Hiddify / Sing-box Subscription">QR</button>
+              </div>
+            </div>
+
+            <div class="url-item">
+              <div class="url-item-header">
+                <span class="badge badge-xray">Xray-core / v2rayNG</span>
+                <span class="url-hint">Includes Reality, Vision, xhttp, gRPC, SS</span>
+              </div>
+              <div class="url-input-group">
+                <input type="text" id="urlXraySub" readonly />
+                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlXraySub">Copy</button>
+                <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlXraySub" data-qr-label="Xray-core / v2rayNG Subscription">QR</button>
+              </div>
+            </div>
+
+            <div class="url-item">
+              <div class="url-item-header">
+                <span class="badge badge-json">Sing-box JSON profile</span>
+                <span class="url-hint">Selector and URL-test outbounds</span>
+              </div>
+              <div class="url-input-group">
+                <input type="text" id="urlSingBoxJson" readonly />
+                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxJson">Copy</button>
+              </div>
+            </div>
+
+            <div class="deeplink-row">
+              <a id="btnHiddifyDeepLink" href="#" class="btn btn-hiddify">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                <span>Import to Hiddify</span>
+              </a>
+              <a id="btnV2rayDeepLink" href="#" class="btn btn-v2ray">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                <span>Import to v2rayNG</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="qr-col">
+            <div class="qr-card">
+              <div id="qrContainer" class="qr-svg-wrap"></div>
+              <div class="qr-caption" id="qrCaption">Subscription QR</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-format Output Tabs -->
+        <div class="output-tabs-header">
+          <div class="tabs-nav" id="outputTabsNav">
+            <button class="tab-btn active" data-tab="rawUris">Share links</button>
+            <button class="tab-btn" data-tab="base64">Base64</button>
+            <button class="tab-btn" data-tab="singBoxJson">Sing-box JSON</button>
+            <button class="tab-btn" data-tab="xrayJson">Xray-core JSON</button>
+          </div>
+          <div class="output-actions">
+            <button id="btnCopyActiveTab" class="btn btn-sm btn-secondary">
+              <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy output</span>
+            </button>
+            <button id="btnDownloadActiveTab" class="btn btn-sm btn-outline">
+              <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download</span>
+            </button>
+          </div>
+        </div>
+
+        <textarea id="outputTextarea" class="code-textarea output-area" rows="9" readonly spellcheck="false"></textarea>
+      </section>
+    </div>
+
+    <!-- Bottom Section: Parsed Nodes Inspector & Editor Table -->
+    <section class="card nodes-table-card">
+      <div class="card-header">
+        <div>
+          <h2>Nodes inspector</h2>
+          <p class="helper-text">
+            Inspect compatibility, copy individual URIs, preview QR codes, or edit parameters.
+          </p>
+        </div>
+        <div class="search-box">
+          <input type="text" id="nodeSearchInput" placeholder="Filter nodes" />
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="nodes-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Remark</th>
+              <th>Protocol &amp; transport</th>
+              <th>Server endpoint</th>
+              <th>Security / SNI / Reality</th>
+              <th>Compatibility</th>
+              <th>Fixes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="nodesTableBody">
+            <tr>
+              <td colspan="8" class="empty-state">No nodes parsed yet</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal for Editing or Creating a Single Node -->
+  <div class="modal-backdrop hidden" id="nodeModalBackdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Edit VPN node</h3>
+        <button id="btnCloseModal" class="btn btn-ghost btn-sm" aria-label="Close modal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Protocol</label>
+            <select id="editProtocol">
+              <option value="vless">VLESS</option>
+              <option value="vmess">VMess</option>
+              <option value="ss">Shadowsocks (SS)</option>
+              <option value="trojan">Trojan</option>
+              <option value="hy2">Hysteria2 (hy2)</option>
+              <option value="tuic">TUIC</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Remark / name</label>
+            <input type="text" id="editRemark" placeholder="e.g. DE-Node-01" />
+          </div>
+          <div class="form-field">
+            <label>Server host / IP</label>
+            <input type="text" id="editHost" placeholder="e.g. 162.55.242.208" />
+          </div>
+          <div class="form-field">
+            <label>Port</label>
+            <input type="number" id="editPort" value="443" min="1" max="65535" />
+          </div>
+          <div class="form-field span-2">
+            <label>UUID / password</label>
+            <input type="text" id="editAuth" placeholder="UUID or password" />
+          </div>
+          <div class="form-field">
+            <label>Transport</label>
+            <select id="editTransport">
+              <option value="tcp">tcp</option>
+              <option value="xhttp">xhttp (Xray-only)</option>
+              <option value="ws">ws (WebSocket)</option>
+              <option value="grpc">grpc</option>
+              <option value="httpupgrade">httpupgrade</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Security</label>
+            <select id="editSecurity">
+              <option value="reality">reality</option>
+              <option value="tls">tls</option>
+              <option value="none">none</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Flow / SS cipher</label>
+            <input type="text" id="editFlowOrMethod" placeholder="xtls-rprx-vision or aes-256-gcm" />
+          </div>
+          <div class="form-field">
+            <label>SNI (server name)</label>
+            <input type="text" id="editSni" placeholder="e.g. www.cloudflare.com" />
+          </div>
+          <div class="form-field">
+            <label>uTLS fingerprint (fp)</label>
+            <select id="editFp">
+              <option value="chrome">chrome</option>
+              <option value="firefox">firefox</option>
+              <option value="edge">edge</option>
+              <option value="safari">safari</option>
+              <option value="ios">ios</option>
+              <option value="android">android</option>
+              <option value="random">random</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Reality ShortID (sid)</label>
+            <input type="text" id="editSid" placeholder="e.g. f362c741c17f477e" />
+          </div>
+          <div class="form-field span-2">
+            <label>Reality PublicKey (pbk)</label>
+            <input type="text" id="editPbk" placeholder="Reality public key" />
+          </div>
+          <div class="form-field">
+            <label>Path / gRPC serviceName</label>
+            <input type="text" id="editPath" placeholder="/path or serviceName" />
+          </div>
+          <div class="form-field">
+            <label>Host header (WS / xhttp)</label>
+            <input type="text" id="editWsHost" placeholder="Optional Host header" />
+          </div>
+        </div>
+
+        <div class="modal-preview">
+          <label>Generated share link</label>
+          <input type="text" id="editPreviewUri" readonly />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCancelModal" class="btn btn-secondary">Cancel</button>
+        <button id="btnCopyModalUri" class="btn btn-outline">Copy link</button>
+        <button id="btnSaveModalNode" class="btn btn-primary">Apply to list</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden">Copied to clipboard</div>
+
+  <script src="./vendor/vpnCore.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
