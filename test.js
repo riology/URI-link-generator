@@ -157,10 +157,31 @@ async function runTests() {
     );
     const shortParsed = await shortParseRes.json();
     assert.strictEqual(shortParsed.urls.singBoxSub, 'https://vpn.example.workers.dev/sub/77?target=singbox');
+    assert.strictEqual(shortParsed.urls.clashUrl, 'https://vpn.example.workers.dev/sub/77?target=clash');
 
     const shortSubGet = await worker.fetch(new Request(shortParsed.urls.singBoxSub), tgEnv);
     assert.strictEqual(shortSubGet.status, 200);
     assert.strictEqual(safeBase64Decode(await shortSubGet.text()).trim().split('\n').length, 13);
+
+    const clashSubGet = await worker.fetch(new Request(shortParsed.urls.clashUrl), tgEnv);
+    assert.strictEqual(clashSubGet.status, 200);
+    assert(clashSubGet.headers.get('Content-Type').includes('text/yaml'));
+    const clashYamlText = await clashSubGet.text();
+    assert(clashYamlText.includes('proxies:'));
+    assert(clashYamlText.includes('"type":"vless"'));
+
+    // Test short link fallback on /api/parse without TG_CHAT_ID (12-char hash, not long compressed token)
+    const noTgRes = await worker.fetch(
+      new Request('https://vpn.example.workers.dev/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawInput: USER_RAW_SAMPLE, targetCore: 'singbox' }),
+      }),
+      {}
+    );
+    assert.strictEqual(noTgRes.status, 200);
+    const noTgParsed = await noTgRes.json();
+    assert(/\/sub\/[0-9a-f]{12}\?target=singbox$/.test(noTgParsed.urls.singBoxSub), `Expected 12-char hash short URL, got: ${noTgParsed.urls.singBoxSub}`);
 
     // Test Telegram Bot webhook receiving raw links
     const webhookRes = await worker.fetch(
@@ -198,6 +219,27 @@ async function runTests() {
     );
     assert.strictEqual(cbRes.status, 200);
     assert(tgCalls.some((c) => c.method === 'sendPhoto'), 'Expected bot to send QR photo + link on button click');
+
+    // Test clicking Clash / Mihomo button (callback_query)
+    const cbClashRes = await worker.fetch(
+      new Request('https://vpn.example.workers.dev/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query: {
+            id: 'cb2',
+            message: { chat: { id: 999888 } },
+            data: 'c:cl:77',
+          },
+        }),
+      }),
+      tgEnv
+    );
+    assert.strictEqual(cbClashRes.status, 200);
+    assert(
+      tgCalls.some((c) => c.method === 'sendPhoto' && String(c.init?.body || '').includes('target=clash')),
+      'Expected bot to send Clash QR photo + link on c:cl callback'
+    );
   } finally {
     globalThis.fetch = origFetch;
   }

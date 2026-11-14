@@ -93,12 +93,16 @@ app.post('/api/parse', async (req, res) => {
       xraySub: `${baseUrl}/sub/${cleanId}?target=xray`,
       singBoxJsonUrl: `${baseUrl}/sub/${cleanId}?target=singbox-json`,
       xrayJsonUrl: `${baseUrl}/sub/${cleanId}?target=xray-json`,
+      clashUrl: `${baseUrl}/sub/${cleanId}?target=clash`,
       rawListUrl: `${baseUrl}/sub/${cleanId}?target=raw`,
       hiddifyDeepLink: `hiddify://import/${baseUrl}/sub/${cleanId}?target=singbox#${encodeURIComponent(
         subName || 'Hiddify-Sub'
       )}`,
       v2rayNgDeepLink: `v2rayng://install-config?url=${encodeURIComponent(
         `${baseUrl}/sub/${cleanId}?target=xray`
+      )}`,
+      clashDeepLink: `clash://install-config?url=${encodeURIComponent(
+        `${baseUrl}/sub/${cleanId}?target=clash`
       )}`,
     };
 
@@ -166,13 +170,13 @@ app.get('/sub/:id', (req, res) => {
 
   // Determine effective core filter
   let targetCore = sub.options?.targetCore || 'all';
-  if (queryTarget === 'singbox' || queryTarget === 'singbox-b64' || queryTarget === 'singbox-json') {
+  if (queryTarget === 'singbox' || queryTarget === 'singbox-b64' || queryTarget === 'singbox-json' || queryTarget === 'clash') {
     targetCore = 'singbox';
   } else if (queryTarget === 'xray' || queryTarget === 'xray-b64' || queryTarget === 'xray-json') {
     targetCore = 'xray';
   } else if (targetCore === 'all') {
-    // Auto-detect pure sing-box / Hiddify User-Agent if no explicit target set
-    if (ua.includes('sing-box') || ua.includes('sfi') || ua.includes('sfa')) {
+    // Auto-detect pure sing-box / Hiddify / Clash User-Agent if no explicit target set
+    if (ua.includes('sing-box') || ua.includes('sfi') || ua.includes('sfa') || ua.includes('clash') || ua.includes('mihomo')) {
       targetCore = 'singbox';
     }
   }
@@ -188,6 +192,11 @@ app.get('/sub/:id', (req, res) => {
   res.setHeader('Profile-Update-Interval', '12');
   res.setHeader('Subscription-Userinfo', 'upload=0; download=0; total=10737418240000; expire=2145916800');
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (queryTarget === 'clash') {
+    res.setHeader('Content-Type', 'text/yaml; charset=utf-8');
+    return res.send(processed.outputs.clashYaml);
+  }
 
   if (queryTarget === 'singbox-json') {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

@@ -82,16 +82,19 @@
         <!-- Filtering & Normalization Controls -->
         <div class="controls-panel">
           <div class="control-group">
-            <label class="control-label">Target core compatibility</label>
-            <div class="segmented-control" id="coreFilterGroup">
-              <button type="button" class="seg-btn active" data-core="all">
-                All nodes
+            <label class="control-label">Select client</label>
+            <div class="segmented-control segmented-4" id="clientSelectGroup">
+              <button type="button" class="seg-btn active" data-client="singbox">
+                Hiddify / Sing-box
               </button>
-              <button type="button" class="seg-btn" data-core="singbox">
-                Sing-box / Hiddify
+              <button type="button" class="seg-btn" data-client="xray">
+                Xray / v2rayNG
               </button>
-              <button type="button" class="seg-btn" data-core="xray">
-                Xray-core (incl. xhttp)
+              <button type="button" class="seg-btn" data-client="singboxJson">
+                Sing-box JSON
+              </button>
+              <button type="button" class="seg-btn" data-client="clash">
+                Clash / Mihomo
               </button>
             </div>
           </div>
@@ -120,12 +123,12 @@
 
           <button id="btnGenerate" class="btn btn-primary btn-block">
             <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            <span>Generate links &amp; update subscription</span>
+            <span>Generate link</span>
           </button>
         </div>
       </section>
 
-      <!-- Right Column: Summary -> 3 Client Buttons -> Selected Client QR & Link -->
+      <!-- Right Column: Summary -> Selected Client QR & Link -->
       <section class="card output-card">
         <div class="card-header">
           <h2>Client subscription</h2>
@@ -136,25 +139,10 @@
         </div>
 
         <p class="helper-text" id="summaryLine">
-          Paste server links on the left, then select a client below to view its QR code and subscription link.
+          Paste server links, choose your client on the left, and click Generate link.
         </p>
 
-        <div class="control-group">
-          <label class="control-label">Select client</label>
-          <div class="segmented-control" id="clientSelectGroup">
-            <button type="button" class="seg-btn" data-client="singbox">
-              Hiddify / Sing-box
-            </button>
-            <button type="button" class="seg-btn" data-client="xray">
-              Xray-core / v2rayNG
-            </button>
-            <button type="button" class="seg-btn" data-client="singboxJson">
-              Sing-box JSON
-            </button>
-          </div>
-        </div>
-
-        <!-- Appears when a client button is selected -->
+        <!-- Appears when generated -->
         <div class="sub-box hidden" id="clientResultBox">
           <div class="sub-links-col">
             <div class="url-item">
@@ -163,7 +151,7 @@
                 <span class="url-hint" id="selectedClientHint">Excludes incompatible xhttp nodes</span>
               </div>
               <div class="url-input-group">
-                <input type="text" id="selectedClientUrl" readonly placeholder="Paste server links to generate link" />
+                <input type="text" id="selectedClientUrl" readonly placeholder="Click Generate link" />
                 <button id="btnCopySelectedUrl" class="btn btn-sm btn-secondary">Copy link</button>
               </div>
             </div>
@@ -186,7 +174,7 @@
       </section>
     </div>
 
-    <!-- Bottom Section: Parsed Nodes Inspector & Editor Table -->
+    <!-- Bottom Section: Parsed Nodes Inspector (Collapsed by default) -->
     <section class="card nodes-table-card">
       <div class="card-header">
         <div>
@@ -195,12 +183,19 @@
             Inspect compatibility, copy individual URIs, preview QR codes, or edit parameters.
           </p>
         </div>
-        <div class="search-box">
-          <input type="text" id="nodeSearchInput" placeholder="Filter nodes" />
-        </div>
+        <button id="btnToggleInspector" class="btn btn-secondary btn-sm" type="button" aria-expanded="false">
+          Show nodes (0)
+        </button>
       </div>
 
-      <div class="table-responsive">
+      <div id="inspectorBody" class="inspector-body hidden">
+        <div class="inspector-toolbar">
+          <div class="search-box">
+            <input type="text" id="nodeSearchInput" placeholder="Filter nodes" />
+          </div>
+        </div>
+
+        <div class="table-responsive">
         <table class="nodes-table">
           <thead>
             <tr>
@@ -220,6 +215,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </section>
   </main>

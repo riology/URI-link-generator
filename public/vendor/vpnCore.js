@@ -1315,6 +1315,194 @@ function toXrayConfig(nodes) {
 }
 
 /**
+ * Generate a Clash / Mihomo (Clash.Meta) YAML profile
+ */
+function toClashProfile(nodes) {
+  const usedNames = new Set();
+  const uniqueName = (rawName, index) => {
+    const base = (rawName || `node-${index + 1}`).replace(/[\r\n]+/g, ' ').trim();
+    let candidate = base;
+    let suffix = 2;
+    while (usedNames.has(candidate)) {
+      candidate = `${base} (${suffix++})`;
+    }
+    usedNames.add(candidate);
+    return candidate;
+  };
+
+  const y = (val) => JSON.stringify(String(val ?? ''));
+  const proxies = [];
+  const proxyNames = [];
+
+  nodes.forEach((node, idx) => {
+    if (!node.compatibility?.singbox && node.transport === 'xhttp') return;
+    const name = uniqueName(node.remark, idx);
+    let item = null;
+
+    if (node.protocol === 'vless') {
+      item = {
+        name,
+        type: 'vless',
+        server: node.host,
+        port: node.port,
+        uuid: node.uuid,
+        udp: true,
+        tls: node.security === 'tls' || node.security === 'reality',
+      };
+      if (node.flow) item.flow = node.flow;
+      if (node.sni) item.servername = node.sni;
+      if (node.fp) item['client-fingerprint'] = node.fp;
+      if (node.insecure) item['skip-cert-verify'] = true;
+      if (node.alpn?.length) item.alpn = node.alpn;
+      if (node.security === 'reality') {
+        item['reality-opts'] = {
+          'public-key': node.pbk || '',
+          ...(node.sid ? { 'short-id': node.sid } : {}),
+        };
+      }
+      if (node.transport === 'ws' || node.transport === 'httpupgrade') {
+        item.network = 'ws';
+        item['ws-opts'] = {
+          path: node.path || '/',
+          ...(node.wsHost ? { headers: { Host: node.wsHost } } : {}),
+        };
+      } else if (node.transport === 'grpc') {
+        item.network = 'grpc';
+        item['grpc-opts'] = { 'grpc-service-name': node.serviceName || '' };
+      } else {
+        item.network = 'tcp';
+      }
+    } else if (node.protocol === 'vmess') {
+      item = {
+        name,
+        type: 'vmess',
+        server: node.host,
+        port: node.port,
+        uuid: node.uuid,
+        alterId: node.alterId || 0,
+        cipher: node.method || 'auto',
+        udp: true,
+        tls: node.security === 'tls',
+      };
+      if (node.sni) item.servername = node.sni;
+      if (node.insecure) item['skip-cert-verify'] = true;
+      if (node.transport === 'ws') {
+        item.network = 'ws';
+        item['ws-opts'] = {
+          path: node.path || '/',
+          ...(node.wsHost ? { headers: { Host: node.wsHost } } : {}),
+        };
+      } else if (node.transport === 'grpc') {
+        item.network = 'grpc';
+        item['grpc-opts'] = { 'grpc-service-name': node.serviceName || '' };
+      }
+    } else if (node.protocol === 'ss') {
+      item = {
+        name,
+        type: 'ss',
+        server: node.host,
+        port: node.port,
+        cipher: node.method || 'aes-256-gcm',
+        password: node.password || '',
+        udp: true,
+      };
+    } else if (node.protocol === 'trojan') {
+      item = {
+        name,
+        type: 'trojan',
+        server: node.host,
+        port: node.port,
+        password: node.password || '',
+        udp: true,
+      };
+      if (node.sni) item.sni = node.sni;
+      if (node.fp) item['client-fingerprint'] = node.fp;
+      if (node.insecure) item['skip-cert-verify'] = true;
+      if (node.alpn?.length) item.alpn = node.alpn;
+      if (node.transport === 'ws') {
+        item.network = 'ws';
+        item['ws-opts'] = {
+          path: node.path || '/',
+          ...(node.wsHost ? { headers: { Host: node.wsHost } } : {}),
+        };
+      } else if (node.transport === 'grpc') {
+        item.network = 'grpc';
+        item['grpc-opts'] = { 'grpc-service-name': node.serviceName || '' };
+      }
+    } else if (node.protocol === 'hy2') {
+      item = {
+        name,
+        type: 'hysteria2',
+        server: node.host,
+        port: node.port,
+        password: node.password || '',
+      };
+      if (node.sni) item.sni = node.sni;
+      if (node.insecure) item['skip-cert-verify'] = true;
+      if (node.alpn?.length) item.alpn = node.alpn;
+    } else if (node.protocol === 'tuic') {
+      item = {
+        name,
+        type: 'tuic',
+        server: node.host,
+        port: node.port,
+        uuid: node.uuid || '',
+        password: node.password || '',
+        'congestion-controller': node.congestionControl || 'bbr',
+      };
+      if (node.sni) item.sni = node.sni;
+      if (node.insecure) item['skip-cert-verify'] = true;
+      if (node.alpn?.length) item.alpn = node.alpn;
+    }
+
+    if (item) {
+      proxies.push(item);
+      proxyNames.push(name);
+    }
+  });
+
+  const lines = [
+    'mixed-port: 7890',
+    'allow-lan: false',
+    'mode: rule',
+    'log-level: info',
+    '',
+    'proxies:',
+  ];
+
+  if (proxies.length === 0) {
+    lines.push('  []');
+  } else {
+    for (const p of proxies) {
+      lines.push(`  - ${JSON.stringify(p)}`);
+    }
+  }
+
+  const groupMembers = proxyNames.length > 0 ? proxyNames : ['DIRECT'];
+  lines.push(
+    '',
+    'proxy-groups:',
+    `  - name: "PROXY"`,
+    `    type: select`,
+    `    proxies:`,
+    ...(proxyNames.length > 0 ? ['      - "AUTO"'] : []),
+    ...groupMembers.map((n) => `      - ${y(n)}`),
+    `  - name: "AUTO"`,
+    `    type: url-test`,
+    `    url: "https://www.gstatic.com/generate_204"`,
+    `    interval: 300`,
+    `    tolerance: 50`,
+    `    proxies:`,
+    ...groupMembers.map((n) => `      - ${y(n)}`),
+    '',
+    'rules:',
+    '  - MATCH,PROXY'
+  );
+
+  return lines.join('\n');
+}
+
+/**
  * High-level parse & process pipeline
  */
 function processRawInput(rawInput, options = {}) {
@@ -1389,6 +1577,7 @@ function processRawInput(rawInput, options = {}) {
   const base64Sub = cleanUriList ? safeBase64Encode(cleanUriList) : '';
   const singBoxConfig = toSingBoxProfile(processed);
   const xrayConfig = toXrayConfig(processed);
+  const clashYaml = toClashProfile(processed);
 
   const stats = {
     inputType,
@@ -1412,6 +1601,7 @@ function processRawInput(rawInput, options = {}) {
       base64: base64Sub,
       singBoxJson: JSON.stringify(singBoxConfig, null, 2),
       xrayJson: JSON.stringify(xrayConfig, null, 2),
+      clashYaml,
     },
   };
 }
@@ -1424,6 +1614,7 @@ const exported = {
   toShareUri,
   toSingBoxProfile,
   toXrayConfig,
+  toClashProfile,
   processRawInput,
 };
 

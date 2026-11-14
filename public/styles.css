@@ -268,6 +268,16 @@ a:focus-visible {
   padding: 4px;
 }
 
+.segmented-control.segmented-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 720px) {
+  .segmented-control.segmented-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .seg-btn {
   background: transparent;
   border: 1px solid transparent;
@@ -760,8 +770,20 @@ a:focus-visible {
 }
 
 .modal-backdrop.hidden,
-.sub-box.hidden {
+.sub-box.hidden,
+.inspector-body.hidden {
   display: none;
+}
+
+.inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .modal {

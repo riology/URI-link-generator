@@ -1,6 +1,7 @@
 const state = {
   targetCore: 'all',
-  selectedClient: null,
+  selectedClient: 'singbox',
+  inspectorOpen: false,
   staticMode: false,
   telegramConfigured: false,
   outputs: {
@@ -8,6 +9,7 @@ const state = {
     base64: '',
     singBoxJson: '',
     xrayJson: '',
+    clashYaml: '',
   },
   nodes: [],
   urls: {},
@@ -33,6 +35,8 @@ const btnSelectedDeepLinkEl = document.getElementById('btnSelectedDeepLink');
 const selectedDeepLinkLabelEl = document.getElementById('selectedDeepLinkLabel');
 const qrContainerEl = document.getElementById('qrContainer');
 const qrCaptionEl = document.getElementById('qrCaption');
+const btnToggleInspectorEl = document.getElementById('btnToggleInspector');
+const inspectorBodyEl = document.getElementById('inspectorBody');
 
 // Stats Elements
 const statInputTypeEl = document.getElementById('statInputType');
@@ -142,8 +146,12 @@ function parseLocally(payload) {
     singBoxJsonUrl: result.nodes.length
       ? `data:application/json;base64,${window.VpnCore.safeBase64Encode(sbResult.outputs.singBoxJson)}`
       : '',
+    clashUrl: result.nodes.length
+      ? `data:text/yaml;base64,${window.VpnCore.safeBase64Encode(sbResult.outputs.clashYaml || '')}`
+      : '',
     hiddifyDeepLink: '#static-mode',
     v2rayNgDeepLink: '#static-mode',
+    clashDeepLink: '#static-mode',
   };
 
   const qrTarget = result.nodes[0]?.normalizedUri || result.outputs.rawUris;
@@ -220,17 +228,25 @@ async function generateAndParse(saveShortLink = false) {
     statFixesCountEl.textContent = data.stats.fixesAppliedCount;
 
     if (data.stats.activeCount > 0) {
-      summaryLineEl.textContent = `${data.stats.activeCount} active nodes (${data.stats.singBoxCompatibleCount} Sing-box ready, ${data.stats.xrayOnlyCount} Xray-only, ${data.stats.fixesAppliedCount} fixes). Select a client below to get its QR code and link:`;
+      summaryLineEl.textContent = `${data.stats.activeCount} active nodes (${data.stats.singBoxCompatibleCount} Sing-box / Clash ready, ${data.stats.xrayOnlyCount} Xray-only, ${data.stats.fixesAppliedCount} fixes).`;
     } else {
       summaryLineEl.textContent =
-        'Paste server links on the left, then select a client below to view its QR code and subscription link.';
+        'Paste server links, choose your client on the left, and click Generate link.';
     }
 
+    updateInspectorToggleLabel();
     renderSelectedClient();
     renderNodesTable();
   } catch (err) {
     console.error(err);
   }
+}
+
+function updateInspectorToggleLabel() {
+  if (!btnToggleInspectorEl) return;
+  const count = state.nodes.length;
+  btnToggleInspectorEl.textContent = state.inspectorOpen ? `Hide nodes (${count})` : `Show nodes (${count})`;
+  btnToggleInspectorEl.setAttribute('aria-expanded', state.inspectorOpen ? 'true' : 'false');
 }
 
 function renderSelectedClient() {
@@ -266,6 +282,15 @@ function renderSelectedClient() {
       deepLink: state.urls.hiddifyDeepLink || '#',
       deepLabel: 'Import to Hiddify',
       qrLabel: 'Sing-box JSON QR',
+    },
+    clash: {
+      badge: 'Clash / Mihomo YAML',
+      badgeClass: 'badge badge-singbox',
+      hint: 'Clash.Meta / Mihomo YAML with PROXY & AUTO groups',
+      url: state.urls.clashUrl || '',
+      deepLink: state.urls.clashDeepLink || '#',
+      deepLabel: 'Import to Clash',
+      qrLabel: 'Clash / Mihomo QR',
     },
   };
 
@@ -524,22 +549,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 3 Client Selector Buttons
+  // 4 Client Selector Buttons (before Generate link)
   document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (state.nodes.length === 0 && rawInputEl.value.trim()) {
-        await generateAndParse(true);
-      }
-      if (state.nodes.length === 0) {
-        showToast('Paste VPN links or Base64 first');
-        return;
-      }
+    btn.addEventListener('click', () => {
       document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       state.selectedClient = btn.dataset.client;
-      renderSelectedClient();
+      if (state.nodes.length > 0) {
+        renderSelectedClient();
+      }
     });
   });
+
+  // Collapsible Nodes Inspector (collapsed by default)
+  if (btnToggleInspectorEl && inspectorBodyEl) {
+    btnToggleInspectorEl.addEventListener('click', () => {
+      state.inspectorOpen = !state.inspectorOpen;
+      inspectorBodyEl.classList.toggle('hidden', !state.inspectorOpen);
+      updateInspectorToggleLabel();
+    });
+  }
 
   try {
     const res = await fetch('/api/health');
@@ -557,8 +586,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btnClearInput').addEventListener('click', () => {
     rawInputEl.value = '';
-    state.selectedClient = null;
-    document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((b) => b.classList.remove('active'));
     generateAndParse(false);
   });
 
@@ -568,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     await generateAndParse(true);
-    showToast('Summary updated — select a client to view QR and link');
+    showToast('Link and QR generated');
   });
 
   // Live auto-parse on paste or input changes

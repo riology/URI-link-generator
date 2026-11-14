@@ -42,12 +42,16 @@ function buildUrls(baseUrl, token, subName) {
     xraySub: `${subUrl}?target=xray`,
     singBoxJsonUrl: `${subUrl}?target=singbox-json`,
     xrayJsonUrl: `${subUrl}?target=xray-json`,
+    clashUrl: `${subUrl}?target=clash`,
     rawListUrl: `${subUrl}?target=raw`,
     hiddifyDeepLink: `hiddify://import/${subUrl}?target=singbox#${encodeURIComponent(
       subName || 'Hiddify-Sub'
     )}`,
     v2rayNgDeepLink: `v2rayng://install-config?url=${encodeURIComponent(
       `${subUrl}?target=xray`
+    )}`,
+    clashDeepLink: `clash://install-config?url=${encodeURIComponent(
+      `${subUrl}?target=clash`
     )}`,
   };
 }
@@ -298,6 +302,7 @@ async function handleTelegramWebhook(request, env, origin, ctx) {
         sb: { title: 'Hiddify / Sing-box Subscription', url: urls.singBoxSub },
         xr: { title: 'Xray-core / v2rayNG Subscription', url: urls.xraySub },
         sj: { title: 'Sing-box JSON Profile', url: urls.singBoxJsonUrl },
+        cl: { title: 'Clash / Mihomo YAML Profile', url: urls.clashUrl },
       };
       const chosen = clientMap[clientCode];
       if (chosen) {
@@ -438,6 +443,7 @@ async function handleTelegramWebhook(request, env, origin, ctx) {
         [{ text: 'Hiddify / Sing-box', callback_data: `c:sb:${shortToken}` }],
         [{ text: 'Xray-core / v2rayNG', callback_data: `c:xr:${shortToken}` }],
         [{ text: 'Sing-box JSON Profile', callback_data: `c:sj:${shortToken}` }],
+        [{ text: 'Clash / Mihomo', callback_data: `c:cl:${shortToken}` }],
       ],
     },
   });
@@ -533,7 +539,12 @@ export default {
             token = await saveSubToTelegram(env, url.origin, normalizedAll.outputs.rawUris, subName, null, ctx);
           }
           if (!token) {
-            token = encodeSubToken(normalizedAll.outputs.rawUris, subName);
+            token = sha256Short(normalizedAll.outputs.rawUris);
+            await putEdgeCache(url.origin, token, {
+              rawInput: normalizedAll.outputs.rawUris,
+              name: subName,
+              options: { targetCore: 'all' },
+            });
           }
           memoryStore.set('default', {
             rawInput: normalizedAll.outputs.rawUris,
@@ -578,11 +589,11 @@ export default {
       const ua = (request.headers.get('user-agent') || '').toLowerCase();
 
       let targetCore = sub.options?.targetCore || 'all';
-      if (queryTarget === 'singbox' || queryTarget === 'singbox-b64' || queryTarget === 'singbox-json') {
+      if (queryTarget === 'singbox' || queryTarget === 'singbox-b64' || queryTarget === 'singbox-json' || queryTarget === 'clash') {
         targetCore = 'singbox';
       } else if (queryTarget === 'xray' || queryTarget === 'xray-b64' || queryTarget === 'xray-json') {
         targetCore = 'xray';
-      } else if (targetCore === 'all' && (ua.includes('sing-box') || ua.includes('sfi') || ua.includes('sfa'))) {
+      } else if (targetCore === 'all' && (ua.includes('sing-box') || ua.includes('sfi') || ua.includes('sfa') || ua.includes('clash') || ua.includes('mihomo'))) {
         targetCore = 'singbox';
       }
 
@@ -599,6 +610,11 @@ export default {
         'Access-Control-Allow-Origin': '*',
       };
 
+      if (queryTarget === 'clash') {
+        return new Response(processed.outputs.clashYaml, {
+          headers: { ...headers, 'Content-Type': 'text/yaml; charset=utf-8' },
+        });
+      }
       if (queryTarget === 'singbox-json') {
         return new Response(processed.outputs.singBoxJson, {
           headers: { ...headers, 'Content-Type': 'application/json; charset=utf-8' },
