@@ -1,11 +1,6 @@
-const nodeCrypto = typeof require === 'function' ? require('crypto') : null;
-
 function generateUuid() {
   if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
-  }
-  if (nodeCrypto && typeof nodeCrypto.randomUUID === 'function') {
-    return nodeCrypto.randomUUID();
   }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
