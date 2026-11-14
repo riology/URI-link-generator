@@ -2,6 +2,7 @@ const state = {
   targetCore: 'all',
   activeTab: 'rawUris',
   staticMode: false,
+  telegramConfigured: false,
   outputs: {
     rawUris: '',
     base64: '',
@@ -67,7 +68,7 @@ function updateModeBadge() {
     label.textContent = 'Static mode';
   } else {
     dot.classList.add('is-live');
-    label.textContent = 'Live server';
+    label.textContent = state.telegramConfigured ? 'Telegram active' : 'Live server';
   }
 }
 
@@ -155,7 +156,7 @@ function parseLocally(payload) {
   };
 }
 
-async function generateAndParse() {
+async function generateAndParse(saveShortLink = false) {
   const rawInput = rawInputEl.value;
   const payload = {
     rawInput,
@@ -164,6 +165,7 @@ async function generateAndParse() {
     remarkPrefix: remarkPrefixInputEl.value.trim(),
     renumberRemarks: chkRenumberEl.checked,
     subName: subNameInputEl.value.trim() || 'VPN Subscription',
+    saveShortLink: Boolean(saveShortLink),
   };
 
   try {
@@ -491,15 +493,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok || !contentType.includes('application/json')) {
       state.staticMode = true;
+    } else {
+      const health = await res.json().catch(() => ({}));
+      state.telegramConfigured = Boolean(health.telegramConfigured);
     }
   } catch {
     state.staticMode = true;
   }
-  await generateAndParse();
+  await generateAndParse(false);
 
   document.getElementById('btnClearInput').addEventListener('click', () => {
     rawInputEl.value = '';
-    generateAndParse();
+    generateAndParse(false);
   });
 
   document.getElementById('btnGenerate').addEventListener('click', async () => {
@@ -507,22 +512,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('Paste VPN links or Base64 above, or click Build node');
       return;
     }
-    await generateAndParse();
+    await generateAndParse(true);
     showToast('Live subscription links generated');
   });
 
   // Live auto-parse on paste or input changes
   let debounceTimer;
+  rawInputEl.addEventListener('paste', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => generateAndParse(true), 150);
+  });
   rawInputEl.addEventListener('input', () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(generateAndParse, 300);
+    debounceTimer = setTimeout(() => generateAndParse(false), 300);
   });
 
-  chkDeduplicateEl.addEventListener('change', generateAndParse);
-  chkRenumberEl.addEventListener('change', generateAndParse);
+  chkDeduplicateEl.addEventListener('change', () => generateAndParse(true));
+  chkRenumberEl.addEventListener('change', () => generateAndParse(true));
   remarkPrefixInputEl.addEventListener('input', () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(generateAndParse, 300);
+    debounceTimer = setTimeout(() => generateAndParse(false), 300);
   });
 
   // Core filter segmented buttons
@@ -531,7 +540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('#coreFilterGroup .seg-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       state.targetCore = btn.dataset.core;
-      generateAndParse();
+      generateAndParse(false);
     });
   });
 

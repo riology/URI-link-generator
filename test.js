@@ -115,6 +115,75 @@ async function runTests() {
   const workerSubLines = safeBase64Decode(await workerSubRes.text()).trim().split('\n');
   assert.strictEqual(workerSubLines.length, 13);
 
+  console.log('6. Testing Telegram Bot webhook & Telegram short-link storage...');
+  const origFetch = globalThis.fetch;
+  const tgCalls = [];
+  globalThis.fetch = async (input, init) => {
+    const urlStr = typeof input === 'string' ? input : input.url;
+    if (urlStr.startsWith('https://api.telegram.org/botTEST_TOKEN/')) {
+      const method = urlStr.split('/').pop();
+      tgCalls.push({ method, init });
+      if (method === 'sendDocument') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: { message_id: 77, document: { file_id: 'DOC_FILE_ID_77777777777777777777' } },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true, result: {} }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return origFetch(input, init);
+  };
+
+  try {
+    const tgEnv = { TG_BOT_TOKEN: 'TEST_TOKEN', TG_CHAT_ID: '-100123456789' };
+    const shortParseRes = await worker.fetch(
+      new Request('https://vpn.example.workers.dev/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawInput: USER_RAW_SAMPLE,
+          targetCore: 'all',
+          subName: 'TG Short Sub',
+          saveShortLink: true,
+        }),
+      }),
+      tgEnv
+    );
+    const shortParsed = await shortParseRes.json();
+    assert.strictEqual(shortParsed.urls.singBoxSub, 'https://vpn.example.workers.dev/sub/77?target=singbox');
+
+    const shortSubGet = await worker.fetch(new Request(shortParsed.urls.singBoxSub), tgEnv);
+    assert.strictEqual(shortSubGet.status, 200);
+    assert.strictEqual(safeBase64Decode(await shortSubGet.text()).trim().split('\n').length, 13);
+
+    // Test Telegram Bot webhook receiving raw links
+    const webhookRes = await worker.fetch(
+      new Request('https://vpn.example.workers.dev/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 1,
+            chat: { id: 999888 },
+            from: { id: 999888, first_name: 'TestUser' },
+            text: USER_RAW_SAMPLE,
+          },
+        }),
+      }),
+      tgEnv
+    );
+    assert.strictEqual(webhookRes.status, 200);
+    assert(tgCalls.some((c) => c.method === 'sendMessage'), 'Expected bot to reply via sendMessage');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+
   console.log('✅ All tests passed!');
 }
 
