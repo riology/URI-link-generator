@@ -179,7 +179,25 @@ async function runTests() {
       tgEnv
     );
     assert.strictEqual(webhookRes.status, 200);
-    assert(tgCalls.some((c) => c.method === 'sendMessage'), 'Expected bot to reply via sendMessage');
+    assert(tgCalls.some((c) => c.method === 'sendMessage'), 'Expected bot to reply with summary & 3 buttons');
+
+    // Test clicking one of the 3 client buttons (callback_query)
+    const cbRes = await worker.fetch(
+      new Request('https://vpn.example.workers.dev/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query: {
+            id: 'cb1',
+            message: { chat: { id: 999888 } },
+            data: 'c:sb:77',
+          },
+        }),
+      }),
+      tgEnv
+    );
+    assert.strictEqual(cbRes.status, 200);
+    assert(tgCalls.some((c) => c.method === 'sendPhoto'), 'Expected bot to send QR photo + link on button click');
   } finally {
     globalThis.fetch = origFetch;
   }

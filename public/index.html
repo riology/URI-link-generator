@@ -125,62 +125,53 @@
         </div>
       </section>
 
-      <!-- Right Column: Generated Subscription Links, QR & Outputs -->
+      <!-- Right Column: Summary -> 3 Client Buttons -> Selected Client QR & Link -->
       <section class="card output-card">
         <div class="card-header">
-          <h2>Subscription &amp; export</h2>
+          <h2>Client subscription</h2>
           <span class="live-badge" id="modeBadge">
             <span class="status-dot" id="modeDot"></span>
             <span id="modeBadgeText">Checking mode</span>
           </span>
         </div>
 
-        <!-- Subscription URLs & QR Box -->
-        <div class="sub-box">
+        <p class="helper-text" id="summaryLine">
+          Paste server links on the left, then select a client below to view its QR code and subscription link.
+        </p>
+
+        <div class="control-group">
+          <label class="control-label">Select client</label>
+          <div class="segmented-control" id="clientSelectGroup">
+            <button type="button" class="seg-btn" data-client="singbox">
+              Hiddify / Sing-box
+            </button>
+            <button type="button" class="seg-btn" data-client="xray">
+              Xray-core / v2rayNG
+            </button>
+            <button type="button" class="seg-btn" data-client="singboxJson">
+              Sing-box JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Appears when a client button is selected -->
+        <div class="sub-box hidden" id="clientResultBox">
           <div class="sub-links-col">
             <div class="url-item">
               <div class="url-item-header">
-                <span class="badge badge-singbox">Hiddify / Sing-box</span>
-                <span class="url-hint">Excludes incompatible xhttp nodes</span>
+                <span class="badge badge-singbox" id="selectedClientBadge">Hiddify / Sing-box</span>
+                <span class="url-hint" id="selectedClientHint">Excludes incompatible xhttp nodes</span>
               </div>
               <div class="url-input-group">
-                <input type="text" id="urlSingBoxSub" readonly placeholder="Click Generate to create link" />
-                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxSub">Copy</button>
-                <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlSingBoxSub" data-qr-label="Hiddify / Sing-box Subscription">QR</button>
-              </div>
-            </div>
-
-            <div class="url-item">
-              <div class="url-item-header">
-                <span class="badge badge-xray">Xray-core / v2rayNG</span>
-                <span class="url-hint">Includes Reality, Vision, xhttp, gRPC, SS</span>
-              </div>
-              <div class="url-input-group">
-                <input type="text" id="urlXraySub" readonly placeholder="Click Generate to create link" />
-                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlXraySub">Copy</button>
-                <button class="btn btn-sm btn-outline qr-trigger-btn" data-qr-source="urlXraySub" data-qr-label="Xray-core / v2rayNG Subscription">QR</button>
-              </div>
-            </div>
-
-            <div class="url-item">
-              <div class="url-item-header">
-                <span class="badge badge-json">Sing-box JSON profile</span>
-                <span class="url-hint">Selector and URL-test outbounds</span>
-              </div>
-              <div class="url-input-group">
-                <input type="text" id="urlSingBoxJson" readonly placeholder="Click Generate to create link" />
-                <button class="btn btn-sm btn-secondary copy-btn" data-copy-target="urlSingBoxJson">Copy</button>
+                <input type="text" id="selectedClientUrl" readonly placeholder="Paste server links to generate link" />
+                <button id="btnCopySelectedUrl" class="btn btn-sm btn-secondary">Copy link</button>
               </div>
             </div>
 
             <div class="deeplink-row">
-              <a id="btnHiddifyDeepLink" href="#" class="btn btn-hiddify">
+              <a id="btnSelectedDeepLink" href="#" class="btn btn-hiddify">
                 <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                <span>Import to Hiddify</span>
-              </a>
-              <a id="btnV2rayDeepLink" href="#" class="btn btn-v2ray">
-                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                <span>Import to v2rayNG</span>
+                <span id="selectedDeepLinkLabel">Import to Hiddify</span>
               </a>
             </div>
           </div>
@@ -192,28 +183,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Multi-format Output Tabs -->
-        <div class="output-tabs-header">
-          <div class="tabs-nav" id="outputTabsNav">
-            <button class="tab-btn active" data-tab="rawUris">Share links</button>
-            <button class="tab-btn" data-tab="base64">Base64</button>
-            <button class="tab-btn" data-tab="singBoxJson">Sing-box JSON</button>
-            <button class="tab-btn" data-tab="xrayJson">Xray-core JSON</button>
-          </div>
-          <div class="output-actions">
-            <button id="btnCopyActiveTab" class="btn btn-sm btn-secondary">
-              <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <span>Copy output</span>
-            </button>
-            <button id="btnDownloadActiveTab" class="btn btn-sm btn-outline">
-              <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>Download</span>
-            </button>
-          </div>
-        </div>
-
-        <textarea id="outputTextarea" class="code-textarea output-area" rows="9" readonly spellcheck="false"></textarea>
       </section>
     </div>
 

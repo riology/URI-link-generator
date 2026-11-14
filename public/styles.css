@@ -759,7 +759,8 @@ a:focus-visible {
   z-index: 100;
 }
 
-.modal-backdrop.hidden {
+.modal-backdrop.hidden,
+.sub-box.hidden {
   display: none;
 }
 

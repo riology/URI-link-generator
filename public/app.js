@@ -1,6 +1,6 @@
 const state = {
   targetCore: 'all',
-  activeTab: 'rawUris',
+  selectedClient: null,
   staticMode: false,
   telegramConfigured: false,
   outputs: {
@@ -20,15 +20,17 @@ const subNameInputEl = document.getElementById('subNameInput');
 const remarkPrefixInputEl = document.getElementById('remarkPrefixInput');
 const chkDeduplicateEl = document.getElementById('chkDeduplicate');
 const chkRenumberEl = document.getElementById('chkRenumber');
-const outputTextareaEl = document.getElementById('outputTextarea');
 const nodesTableBodyEl = document.getElementById('nodesTableBody');
 const nodeSearchInputEl = document.getElementById('nodeSearchInput');
 
-const urlSingBoxSubEl = document.getElementById('urlSingBoxSub');
-const urlXraySubEl = document.getElementById('urlXraySub');
-const urlSingBoxJsonEl = document.getElementById('urlSingBoxJson');
-const btnHiddifyDeepLinkEl = document.getElementById('btnHiddifyDeepLink');
-const btnV2rayDeepLinkEl = document.getElementById('btnV2rayDeepLink');
+const summaryLineEl = document.getElementById('summaryLine');
+const clientResultBoxEl = document.getElementById('clientResultBox');
+const selectedClientBadgeEl = document.getElementById('selectedClientBadge');
+const selectedClientHintEl = document.getElementById('selectedClientHint');
+const selectedClientUrlEl = document.getElementById('selectedClientUrl');
+const btnCopySelectedUrlEl = document.getElementById('btnCopySelectedUrl');
+const btnSelectedDeepLinkEl = document.getElementById('btnSelectedDeepLink');
+const selectedDeepLinkLabelEl = document.getElementById('selectedDeepLinkLabel');
 const qrContainerEl = document.getElementById('qrContainer');
 const qrCaptionEl = document.getElementById('qrCaption');
 
@@ -217,36 +219,76 @@ async function generateAndParse(saveShortLink = false) {
     statXrayOnlyCountEl.textContent = data.stats.xrayOnlyCount;
     statFixesCountEl.textContent = data.stats.fixesAppliedCount;
 
-    // Update URLs
-    urlSingBoxSubEl.value = data.urls.singBoxSub || '';
-    urlXraySubEl.value = data.urls.xraySub || '';
-    urlSingBoxJsonEl.value = data.urls.singBoxJsonUrl || '';
-    btnHiddifyDeepLinkEl.href = data.urls.hiddifyDeepLink || '#';
-    btnV2rayDeepLinkEl.href = data.urls.v2rayNgDeepLink || '#';
-
-    const qrSvg =
-      data.qrSubSvg ||
-      (data.urls.universalSub ? renderClientQr(data.urls.universalSub) : '') ||
-      (data.nodes[0] ? renderClientQr(data.nodes[0].normalizedUri) : '');
-
-    if (qrSvg) {
-      qrContainerEl.innerHTML = qrSvg;
-      qrCaptionEl.textContent = data.urls.universalSub ? 'Subscription QR' : `Node QR: ${data.nodes[0]?.remark || ''}`;
+    if (data.stats.activeCount > 0) {
+      summaryLineEl.textContent = `${data.stats.activeCount} active nodes (${data.stats.singBoxCompatibleCount} Sing-box ready, ${data.stats.xrayOnlyCount} Xray-only, ${data.stats.fixesAppliedCount} fixes). Select a client below to get its QR code and link:`;
     } else {
-      qrContainerEl.innerHTML =
-        '<div style="padding:16px;font-size:12px;color:#64748b;text-align:center;">Paste server links above to generate QR</div>';
-      qrCaptionEl.textContent = 'Subscription QR';
+      summaryLineEl.textContent =
+        'Paste server links on the left, then select a client below to view its QR code and subscription link.';
     }
 
-    updateOutputTextarea();
+    renderSelectedClient();
     renderNodesTable();
   } catch (err) {
     console.error(err);
   }
 }
 
-function updateOutputTextarea() {
-  outputTextareaEl.value = state.outputs[state.activeTab] || '';
+function renderSelectedClient() {
+  if (!state.selectedClient || state.nodes.length === 0) {
+    clientResultBoxEl.classList.add('hidden');
+    return;
+  }
+
+  const clientConfigs = {
+    singbox: {
+      badge: 'Hiddify / Sing-box',
+      badgeClass: 'badge badge-singbox',
+      hint: 'Excludes incompatible xhttp nodes',
+      url: state.urls.singBoxSub || '',
+      deepLink: state.urls.hiddifyDeepLink || '#',
+      deepLabel: 'Import to Hiddify',
+      qrLabel: 'Hiddify / Sing-box QR',
+    },
+    xray: {
+      badge: 'Xray-core / v2rayNG',
+      badgeClass: 'badge badge-xray',
+      hint: 'Includes Reality, Vision, xhttp, gRPC, SS',
+      url: state.urls.xraySub || '',
+      deepLink: state.urls.v2rayNgDeepLink || '#',
+      deepLabel: 'Import to v2rayNG',
+      qrLabel: 'Xray-core / v2rayNG QR',
+    },
+    singboxJson: {
+      badge: 'Sing-box JSON profile',
+      badgeClass: 'badge badge-json',
+      hint: 'Selector and URL-test outbounds',
+      url: state.urls.singBoxJsonUrl || '',
+      deepLink: state.urls.hiddifyDeepLink || '#',
+      deepLabel: 'Import to Hiddify',
+      qrLabel: 'Sing-box JSON QR',
+    },
+  };
+
+  const cfg = clientConfigs[state.selectedClient];
+  if (!cfg) return;
+
+  clientResultBoxEl.classList.remove('hidden');
+  selectedClientBadgeEl.className = cfg.badgeClass;
+  selectedClientBadgeEl.textContent = cfg.badge;
+  selectedClientHintEl.textContent = cfg.hint;
+  selectedClientUrlEl.value = cfg.url;
+  btnSelectedDeepLinkEl.href = cfg.deepLink;
+  selectedDeepLinkLabelEl.textContent = cfg.deepLabel;
+
+  const qrSvg = renderClientQr(cfg.url) || (state.nodes[0] ? renderClientQr(state.nodes[0].normalizedUri) : '');
+  if (qrSvg) {
+    qrContainerEl.innerHTML = qrSvg;
+    qrCaptionEl.textContent = cfg.qrLabel;
+  } else {
+    qrContainerEl.innerHTML =
+      '<div style="padding:16px;font-size:12px;color:#64748b;text-align:center;">Payload too large for QR — use Copy link</div>';
+    qrCaptionEl.textContent = cfg.qrLabel;
+  }
 }
 
 function escapeHtml(str) {
@@ -374,6 +416,7 @@ window.showNodeQr = async function (idx) {
 
 async function updateQrPreview(text, caption) {
   if (!text) return;
+  clientResultBoxEl.classList.remove('hidden');
   const svg = renderClientQr(text);
   qrContainerEl.innerHTML =
     svg || '<div style="padding:16px;font-size:12px;color:#64748b;text-align:center;">Payload too large for QR — use Copy</div>';
@@ -463,30 +506,40 @@ async function refreshModalPreview() {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
-  const handleHiddifyClick = (e) => {
+  btnSelectedDeepLinkEl.addEventListener('click', (e) => {
     const href = e.currentTarget.getAttribute('href');
     if (!href || href === '#' || href === '#static-mode') {
       e.preventDefault();
-      if (state.urls.singBoxSub) {
-        copyText(state.urls.singBoxSub, 'Sing-box subscription copied');
+      if (selectedClientUrlEl.value) {
+        copyText(selectedClientUrlEl.value, 'Subscription copied to clipboard');
       } else {
         showToast('Paste VPN links or use Build node first');
       }
     }
-  };
-  const handleV2rayClick = (e) => {
-    const href = e.currentTarget.getAttribute('href');
-    if (!href || href === '#' || href === '#static-mode') {
-      e.preventDefault();
-      if (state.urls.xraySub) {
-        copyText(state.urls.xraySub, 'Xray subscription copied');
-      } else {
-        showToast('Paste VPN links or use Build node first');
-      }
+  });
+
+  btnCopySelectedUrlEl.addEventListener('click', () => {
+    if (selectedClientUrlEl.value) {
+      copyText(selectedClientUrlEl.value, 'Subscription link copied');
     }
-  };
-  btnHiddifyDeepLinkEl.addEventListener('click', handleHiddifyClick);
-  btnV2rayDeepLinkEl.addEventListener('click', handleV2rayClick);
+  });
+
+  // 3 Client Selector Buttons
+  document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (state.nodes.length === 0 && rawInputEl.value.trim()) {
+        await generateAndParse(true);
+      }
+      if (state.nodes.length === 0) {
+        showToast('Paste VPN links or Base64 first');
+        return;
+      }
+      document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.selectedClient = btn.dataset.client;
+      renderSelectedClient();
+    });
+  });
 
   try {
     const res = await fetch('/api/health');
@@ -504,6 +557,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btnClearInput').addEventListener('click', () => {
     rawInputEl.value = '';
+    state.selectedClient = null;
+    document.querySelectorAll('#clientSelectGroup .seg-btn').forEach((b) => b.classList.remove('active'));
     generateAndParse(false);
   });
 
@@ -513,7 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     await generateAndParse(true);
-    showToast('Live subscription links generated');
+    showToast('Summary updated — select a client to view QR and link');
   });
 
   // Live auto-parse on paste or input changes
@@ -542,60 +597,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.targetCore = btn.dataset.core;
       generateAndParse(false);
     });
-  });
-
-  // Output Tabs
-  document.querySelectorAll('#outputTabsNav .tab-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#outputTabsNav .tab-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.activeTab = btn.dataset.tab;
-      updateOutputTextarea();
-    });
-  });
-
-  // Copy buttons for subscription URLs
-  document.querySelectorAll('.copy-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.dataset.copyTarget;
-      const input = document.getElementById(targetId);
-      if (input) copyText(input.value, 'Subscription URL copied!');
-    });
-  });
-
-  // QR triggers for subscription URLs
-  document.querySelectorAll('.qr-trigger-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const sourceId = btn.dataset.qrSource;
-      const label = btn.dataset.qrLabel;
-      const input = document.getElementById(sourceId);
-      if (input && input.value) {
-        updateQrPreview(input.value, label);
-      }
-    });
-  });
-
-  // Copy & Download active output tab
-  document.getElementById('btnCopyActiveTab').addEventListener('click', () => {
-    copyText(outputTextareaEl.value, `Copied ${state.activeTab} output!`);
-  });
-
-  document.getElementById('btnDownloadActiveTab').addEventListener('click', () => {
-    const content = outputTextareaEl.value;
-    if (!content) return;
-    const extMap = {
-      rawUris: 'vpn-nodes.txt',
-      base64: 'subscription-base64.txt',
-      singBoxJson: 'sing-box-profile.json',
-      xrayJson: 'xray-config.json',
-    };
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = extMap[state.activeTab] || 'vpn-output.txt';
-    a.click();
-    URL.revokeObjectURL(url);
   });
 
   nodeSearchInputEl.addEventListener('input', renderNodesTable);

@@ -277,6 +277,52 @@ async function handleTelegramWebhook(request, env, origin, ctx) {
   }
 
   const update = await request.json().catch(() => null);
+
+  // Handle inline button clicks (3 client buttons -> send QR + link for selected client)
+  if (update?.callback_query) {
+    const cq = update.callback_query;
+    const cbChatId = cq.message?.chat?.id;
+    const data = String(cq.data || '');
+
+    await tgApi(botToken, 'answerCallbackQuery', {
+      callback_query_id: cq.id,
+    }).catch(() => {});
+
+    if (cbChatId && data.startsWith('c:')) {
+      const parts = data.split(':');
+      const clientCode = parts[1];
+      const token = parts.slice(2).join(':');
+      const urls = buildUrls(origin, token, 'VPN Subscription');
+
+      const clientMap = {
+        sb: { title: 'Hiddify / Sing-box Subscription', url: urls.singBoxSub },
+        xr: { title: 'Xray-core / v2rayNG Subscription', url: urls.xraySub },
+        sj: { title: 'Sing-box JSON Profile', url: urls.singBoxJsonUrl },
+      };
+      const chosen = clientMap[clientCode];
+      if (chosen) {
+        const caption = `<b>${escapeHtml(chosen.title)}</b>\n\n<code>${escapeHtml(chosen.url)}</code>`;
+        const qrPhotoUrl = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=12&data=${encodeURIComponent(chosen.url)}`;
+        const photoRes = await tgApi(botToken, 'sendPhoto', {
+          chat_id: cbChatId,
+          photo: qrPhotoUrl,
+          caption,
+          parse_mode: 'HTML',
+        }).catch(() => null);
+
+        if (!photoRes || !photoRes.ok) {
+          await tgApi(botToken, 'sendMessage', {
+            chat_id: cbChatId,
+            text: caption,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+          });
+        }
+      }
+    }
+    return jsonResponse({ ok: true });
+  }
+
   const msg = update?.message || update?.channel_post;
   if (!msg || !msg.chat) {
     return jsonResponse({ ok: true });
@@ -362,24 +408,24 @@ async function handleTelegramWebhook(request, env, origin, ctx) {
   }
 
   const subName = msg.from?.first_name ? `${msg.from.first_name} VPN` : 'Telegram VPN';
-  const shortToken =
-    (await saveSubToTelegram(env, origin, parsed.outputs.rawUris, subName, chatId, ctx)) ||
-    encodeSubToken(parsed.outputs.rawUris, subName);
-
-  const urls = buildUrls(origin, shortToken, subName);
+  let shortToken = await saveSubToTelegram(env, origin, parsed.outputs.rawUris, subName, chatId, ctx);
+  if (!shortToken) {
+    shortToken = sha256Short(parsed.outputs.rawUris);
+    await putEdgeCache(origin, shortToken, {
+      rawInput: parsed.outputs.rawUris,
+      name: subName,
+      options: { targetCore: 'all' },
+    });
+  }
 
   const replyLines = [
-    `<b>Subscription Ready</b>`,
-    `Nodes: <b>${parsed.stats.activeCount}</b> active (${parsed.stats.singBoxCompatibleCount} Sing-box, ${parsed.stats.xrayOnlyCount} Xray-only, ${parsed.stats.fixesAppliedCount} fixes)`,
+    `<b>Summary</b>`,
+    `• Active nodes: <b>${parsed.stats.activeCount}</b>`,
+    `• Sing-box / Hiddify ready: <b>${parsed.stats.singBoxCompatibleCount}</b>`,
+    `• Xray-only (xhttp): <b>${parsed.stats.xrayOnlyCount}</b>`,
+    `• Auto-fixes applied: <b>${parsed.stats.fixesAppliedCount}</b>`,
     ``,
-    `<b>Hiddify / Sing-box Sub URL:</b>`,
-    `<code>${escapeHtml(urls.singBoxSub)}</code>`,
-    ``,
-    `<b>Xray-core / v2rayNG Sub URL:</b>`,
-    `<code>${escapeHtml(urls.xraySub)}</code>`,
-    ``,
-    `<b>Sing-box Full JSON Profile URL:</b>`,
-    `<code>${escapeHtml(urls.singBoxJsonUrl)}</code>`,
+    `Select your client below to get the QR code and subscription link:`,
   ];
 
   await tgApi(botToken, 'sendMessage', {
@@ -387,23 +433,14 @@ async function handleTelegramWebhook(request, env, origin, ctx) {
     text: replyLines.join('\n'),
     parse_mode: 'HTML',
     disable_web_page_preview: true,
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: 'Hiddify / Sing-box', callback_data: `c:sb:${shortToken}` }],
+        [{ text: 'Xray-core / v2rayNG', callback_data: `c:xr:${shortToken}` }],
+        [{ text: 'Sing-box JSON Profile', callback_data: `c:sj:${shortToken}` }],
+      ],
+    },
   });
-
-  // Attach clean share links + Sing-box JSON profile
-  await tgSendDocument(
-    botToken,
-    chatId,
-    'clean-links.txt',
-    parsed.outputs.rawUris,
-    'Normalized share links'
-  );
-  await tgSendDocument(
-    botToken,
-    chatId,
-    'sing-box-profile.json',
-    parsed.outputs.singBoxJson,
-    'Sing-box JSON profile'
-  );
 
   return jsonResponse({ ok: true });
 }
@@ -443,7 +480,7 @@ export default {
       const webhookUrl = `${url.origin}/api/telegram/webhook`;
       const hookRes = await tgApi(botToken, 'setWebhook', {
         url: webhookUrl,
-        allowed_updates: ['message', 'channel_post'],
+        allowed_updates: ['message', 'channel_post', 'callback_query'],
       });
       await tgApi(botToken, 'setMyCommands', {
         commands: [
