@@ -1,6 +1,7 @@
 const assert = require('assert');
 const http = require('http');
 const app = require('./server');
+const worker = require('./worker');
 const { processRawInput, safeBase64Encode, safeBase64Decode } = require('./src/vpnCore');
 
 const USER_RAW_SAMPLE = `vless://d9274255-edf4-4944-bc62-6ef35cd2de40@194.87.109.106:443?security=tls&alpn=h2,http/1.1&encryption=none&insecure=0&headerType=none&fp=chrome&type=tcp&allowInsecure=0&sni=currant.asynchronous.site#mlmvpn2406
@@ -91,6 +92,28 @@ async function runTests() {
   } finally {
     server.close();
   }
+
+  console.log('5. Testing Cloudflare Worker stateless subscription link...');
+  const workerParseRes = await worker.fetch(
+    new Request('https://vpn.example.workers.dev/api/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rawInput: USER_RAW_SAMPLE,
+        targetCore: 'all',
+        subName: 'Cloudflare Sub',
+      }),
+    }),
+    {}
+  );
+  assert.strictEqual(workerParseRes.status, 200);
+  const workerParsed = await workerParseRes.json();
+  assert(workerParsed.urls && workerParsed.urls.singBoxSub, 'Expected generated stateless singBoxSub URL');
+
+  const workerSubRes = await worker.fetch(new Request(workerParsed.urls.singBoxSub), {});
+  assert.strictEqual(workerSubRes.status, 200);
+  const workerSubLines = safeBase64Decode(await workerSubRes.text()).trim().split('\n');
+  assert.strictEqual(workerSubLines.length, 13);
 
   console.log('✅ All tests passed!');
 }

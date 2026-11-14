@@ -2,7 +2,6 @@ const state = {
   targetCore: 'all',
   activeTab: 'rawUris',
   staticMode: false,
-  publishedUrls: null,
   outputs: {
     rawUris: '',
     base64: '',
@@ -13,40 +12,6 @@ const state = {
   urls: {},
   editingNodeIndex: null,
 };
-
-// API base: empty = same origin (local Node server). Set in config.js for a Cloudflare Worker.
-const API_BASE = ((window.APP_CONFIG && window.APP_CONFIG.apiBase) || '').trim().replace(/\/+$/, '');
-const apiUrl = (path) => API_BASE + path;
-
-// Per-browser subscription identity (random ID + secret edit token)
-const IDENTITY_KEY = 'linkgen.identity.v1';
-
-function randomString(len) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
-}
-
-function resetIdentity() {
-  const identity = { id: randomString(16), token: randomString(32) };
-  try {
-    localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
-  } catch {
-    // localStorage unavailable; identity lasts for this page load only
-  }
-  return identity;
-}
-
-function getIdentity() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null');
-    if (saved && saved.id && saved.token) return saved;
-  } catch {
-    // fall through
-  }
-  return resetIdentity();
-}
 
 // DOM Elements
 const rawInputEl = document.getElementById('rawInput');
@@ -190,31 +155,7 @@ function parseLocally(payload) {
   };
 }
 
-async function publishSubscription(payload, allowRetry = true) {
-  const identity = getIdentity();
-  try {
-    const res = await fetch(apiUrl('/api/parse'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, subId: identity.id, subToken: identity.token, saveToSub: true }),
-    });
-    const data = await res.json().catch(() => null);
-    if (res.status === 403 && data && data.code === 'TOKEN_MISMATCH' && allowRetry) {
-      resetIdentity();
-      return publishSubscription(payload, false);
-    }
-    if (!res.ok || !data || !data.ok) {
-      showToast('Publish failed: ' + ((data && data.error) || `HTTP ${res.status}`));
-      return null;
-    }
-    return data;
-  } catch {
-    showToast('Could not reach the subscription API');
-    return null;
-  }
-}
-
-async function generateAndParse({ publish = false } = {}) {
+async function generateAndParse() {
   const rawInput = rawInputEl.value;
   const payload = {
     rawInput,
@@ -225,22 +166,28 @@ async function generateAndParse({ publish = false } = {}) {
     subName: subNameInputEl.value.trim() || 'VPN Subscription',
   };
 
-  let published = false;
   try {
-    // Parsing always runs in the browser; the API is only used to publish subscriptions.
-    const data = parseLocally(payload);
-
+    let data = null;
     if (!state.staticMode) {
-      if (publish && data.nodes.length > 0) {
-        const result = await publishSubscription(payload);
-        if (result && result.urls && result.urls.universalSub) {
-          state.publishedUrls = result.urls;
-          published = true;
+      try {
+        const res = await fetch('/api/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          state.staticMode = true;
         }
+      } catch {
+        state.staticMode = true;
       }
-      data.urls = state.publishedUrls || {};
-      data.qrSubSvg = state.publishedUrls ? renderClientQr(state.publishedUrls.universalSub) : '';
-      data.qrCaption = 'Subscription QR';
+    }
+
+    if (state.staticMode || !data) {
+      data = parseLocally(payload);
     }
 
     updateModeBadge();
@@ -275,13 +222,18 @@ async function generateAndParse({ publish = false } = {}) {
     btnHiddifyDeepLinkEl.href = data.urls.hiddifyDeepLink || '#';
     btnV2rayDeepLinkEl.href = data.urls.v2rayNgDeepLink || '#';
 
-    if (data.qrSubSvg) {
-      qrContainerEl.innerHTML = data.qrSubSvg;
-      qrCaptionEl.textContent = data.qrCaption || 'Subscription QR';
+    const qrSvg =
+      data.qrSubSvg ||
+      (data.urls.universalSub ? renderClientQr(data.urls.universalSub) : '') ||
+      (data.nodes[0] ? renderClientQr(data.nodes[0].normalizedUri) : '');
+
+    if (qrSvg) {
+      qrContainerEl.innerHTML = qrSvg;
+      qrCaptionEl.textContent = data.urls.universalSub ? 'Subscription QR' : `Node QR: ${data.nodes[0]?.remark || ''}`;
     } else {
-      const hint = state.staticMode ? 'Click QR on any node row to preview' : 'Click Generate to publish your subscription';
-      qrContainerEl.innerHTML = `<div style="padding:16px;font-size:12px;color:#64748b;text-align:center;">${hint}</div>`;
-      qrCaptionEl.textContent = state.staticMode ? 'Static mode' : 'Not published yet';
+      qrContainerEl.innerHTML =
+        '<div style="padding:16px;font-size:12px;color:#64748b;text-align:center;">Paste server links above to generate QR</div>';
+      qrCaptionEl.textContent = 'Subscription QR';
     }
 
     updateOutputTextarea();
@@ -289,7 +241,6 @@ async function generateAndParse({ publish = false } = {}) {
   } catch (err) {
     console.error(err);
   }
-  return published;
 }
 
 function updateOutputTextarea() {
@@ -511,24 +462,22 @@ async function refreshModalPreview() {
 // Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
   const handleHiddifyClick = (e) => {
-    if (state.staticMode || !state.publishedUrls) {
+    const href = e.currentTarget.getAttribute('href');
+    if (!href || href === '#' || href === '#static-mode') {
       e.preventDefault();
-      if (!state.staticMode) {
-        showToast('Click Generate to publish your subscription first');
-      } else if (state.urls.singBoxSub) {
-        copyText(state.urls.singBoxSub, 'Sing-box Base64 copied — in Hiddify tap + → Add from clipboard');
+      if (state.urls.singBoxSub) {
+        copyText(state.urls.singBoxSub, 'Sing-box subscription copied');
       } else {
         showToast('Paste VPN links or use Build node first');
       }
     }
   };
   const handleV2rayClick = (e) => {
-    if (state.staticMode || !state.publishedUrls) {
+    const href = e.currentTarget.getAttribute('href');
+    if (!href || href === '#' || href === '#static-mode') {
       e.preventDefault();
-      if (!state.staticMode) {
-        showToast('Click Generate to publish your subscription first');
-      } else if (state.urls.xraySub) {
-        copyText(state.urls.xraySub, 'Xray Base64 copied — in v2rayNG tap + → Import from clipboard');
+      if (state.urls.xraySub) {
+        copyText(state.urls.xraySub, 'Xray subscription copied');
       } else {
         showToast('Paste VPN links or use Build node first');
       }
@@ -537,9 +486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnHiddifyDeepLinkEl.addEventListener('click', handleHiddifyClick);
   btnV2rayDeepLinkEl.addEventListener('click', handleV2rayClick);
 
-  // Detect API (Cloudflare Worker or local Node server) vs static-only mode
   try {
-    const res = await fetch(apiUrl('/api/health'));
+    const res = await fetch('/api/health');
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok || !contentType.includes('application/json')) {
       state.staticMode = true;
@@ -559,12 +507,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('Paste VPN links or Base64 above, or click Build node');
       return;
     }
-    const published = await generateAndParse({ publish: true });
-    if (state.staticMode) {
-      showToast('Links generated');
-    } else if (published) {
-      showToast('Subscription published');
-    }
+    await generateAndParse();
+    showToast('Live subscription links generated');
   });
 
   // Live auto-parse on paste or input changes
