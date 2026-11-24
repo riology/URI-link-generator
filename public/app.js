@@ -2,6 +2,7 @@ const state = {
   targetCore: 'all',
   selectedClient: 'singbox',
   inspectorOpen: false,
+  inspectorDirty: false,
   staticMode: false,
   telegramConfigured: false,
   outputs: {
@@ -37,6 +38,8 @@ const qrContainerEl = document.getElementById('qrContainer');
 const qrCaptionEl = document.getElementById('qrCaption');
 const btnToggleInspectorEl = document.getElementById('btnToggleInspector');
 const inspectorBodyEl = document.getElementById('inspectorBody');
+const inspectorSaveGroupEl = document.getElementById('inspectorSaveGroup');
+const btnSaveInspectorChangesEl = document.getElementById('btnSaveInspectorChanges');
 
 // Stats Elements
 const statInputTypeEl = document.getElementById('statInputType');
@@ -234,11 +237,19 @@ async function generateAndParse(saveShortLink = false) {
         'Paste server links, choose your client on the left, and click Generate link.';
     }
 
+    setInspectorDirty(false);
     updateInspectorToggleLabel();
     renderSelectedClient();
     renderNodesTable();
   } catch (err) {
     console.error(err);
+  }
+}
+
+function setInspectorDirty(dirty) {
+  state.inspectorDirty = Boolean(dirty);
+  if (inspectorSaveGroupEl) {
+    inspectorSaveGroupEl.classList.toggle('hidden', !state.inspectorDirty);
   }
 }
 
@@ -326,22 +337,24 @@ function escapeHtml(str) {
 
 function renderNodesTable() {
   const filter = (nodeSearchInputEl.value || '').trim().toLowerCase();
-  const filtered = state.nodes.filter((n) => {
-    if (!filter) return true;
-    const hay = [
-      n.remark,
-      n.protocol,
-      n.transport,
-      n.host,
-      n.port,
-      n.sni,
-      n.security,
-      n.compatibility?.badge,
-    ]
-      .join(' ')
-      .toLowerCase();
-    return hay.includes(filter);
-  });
+  const filtered = state.nodes
+    .map((node, origIdx) => ({ node, origIdx }))
+    .filter(({ node: n }) => {
+      if (!filter) return true;
+      const hay = [
+        n.remark,
+        n.protocol,
+        n.transport,
+        n.host,
+        n.port,
+        n.sni,
+        n.security,
+        n.compatibility?.badge,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(filter);
+    });
 
   if (filtered.length === 0) {
     nodesTableBodyEl.innerHTML = `<tr><td colspan="8" class="empty-state">No matching VPN nodes found. Paste raw links or Base64 above.</td></tr>`;
@@ -349,7 +362,7 @@ function renderNodesTable() {
   }
 
   nodesTableBodyEl.innerHTML = filtered
-    .map((node, idx) => {
+    .map(({ node, origIdx }, idx) => {
       const compatClass = node.compatibility.both
         ? 'badge-singbox'
         : node.compatibility.xray
@@ -415,9 +428,10 @@ function renderNodesTable() {
           <td>${fixesHtml}</td>
           <td>
             <div class="row-actions">
-              <button class="btn btn-sm btn-secondary" onclick="copyNodeUri(${idx})" title="Copy normalized URI">Copy</button>
-              <button class="btn btn-sm btn-outline" onclick="showNodeQr(${idx})" title="Show QR Code">QR</button>
-              <button class="btn btn-sm btn-ghost" onclick="openEditModal(${idx})" title="Edit node parameters">Edit</button>
+              <button class="btn btn-sm btn-secondary" onclick="copyNodeUri(${origIdx})" title="Copy normalized URI">Copy</button>
+              <button class="btn btn-sm btn-outline" onclick="showNodeQr(${origIdx})" title="Show QR Code">QR</button>
+              <button class="btn btn-sm btn-ghost" onclick="openEditModal(${origIdx})" title="Edit node parameters">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="removeNode(${origIdx})" title="Remove node">Remove</button>
             </div>
           </td>
         </tr>
@@ -425,6 +439,17 @@ function renderNodesTable() {
     })
     .join('');
 }
+
+window.removeNode = function (idx) {
+  const removed = state.nodes[idx];
+  if (!removed) return;
+  state.nodes.splice(idx, 1);
+  rawInputEl.value = state.nodes.map((n) => n.normalizedUri).join('\n');
+  setInspectorDirty(true);
+  updateInspectorToggleLabel();
+  renderNodesTable();
+  showToast(`Removed ${removed.remark} — click Save changes to update link & QR`);
+};
 
 window.copyNodeUri = function (idx) {
   const node = state.nodes[idx];
@@ -570,6 +595,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  if (btnSaveInspectorChangesEl) {
+    btnSaveInspectorChangesEl.addEventListener('click', async () => {
+      await generateAndParse(true);
+      showToast('Changes saved — subscription link & QR updated');
+    });
+  }
+
   try {
     const res = await fetch('/api/health');
     const contentType = res.headers.get('content-type') || '';
@@ -671,13 +703,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const updatedList = state.nodes.map((n, i) => (i === state.editingNodeIndex ? newUri : n.normalizedUri));
         rawInputEl.value = updatedList.join('\n');
       }
-      showToast('Updated node in list!');
+
+      const reparsed = window.VpnCore.processRawInput(newUri, { targetCore: 'all' });
+      if (reparsed.nodes && reparsed.nodes[0]) {
+        state.nodes[state.editingNodeIndex] = reparsed.nodes[0];
+      }
+      nodeModalBackdrop.classList.add('hidden');
+      setInspectorDirty(true);
+      updateInspectorToggleLabel();
+      renderNodesTable();
+      showToast('Node updated — click Save changes to update link & QR');
     } else {
       rawInputEl.value = (rawInputEl.value.trim() + '\n' + newUri).trim();
+      nodeModalBackdrop.classList.add('hidden');
+      await generateAndParse(true);
       showToast('Added custom node to list!');
     }
-
-    nodeModalBackdrop.classList.add('hidden');
-    generateAndParse();
   });
 });

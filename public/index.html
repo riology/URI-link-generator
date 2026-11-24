@@ -180,7 +180,7 @@
         <div>
           <h2>Nodes inspector</h2>
           <p class="helper-text">
-            Inspect compatibility, copy individual URIs, preview QR codes, or edit parameters.
+            Inspect compatibility, copy individual URIs, preview QR codes, edit parameters, or remove nodes.
           </p>
         </div>
         <button id="btnToggleInspector" class="btn btn-secondary btn-sm" type="button" aria-expanded="false">
@@ -190,6 +190,12 @@
 
       <div id="inspectorBody" class="inspector-body hidden">
         <div class="inspector-toolbar">
+          <div id="inspectorSaveGroup" class="inspector-save-group hidden">
+            <span class="inspector-dirty-note">Unsaved node changes</span>
+            <button id="btnSaveInspectorChanges" class="btn btn-primary btn-sm" type="button">
+              Save changes
+            </button>
+          </div>
           <div class="search-box">
             <input type="text" id="nodeSearchInput" placeholder="Filter nodes" />
           </div>

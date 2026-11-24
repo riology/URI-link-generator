@@ -68,7 +68,7 @@ The fastest way to convert links on mobile or desktop without opening a browser:
    - **Sing-box JSON**
    - **Clash / Mihomo**
 3. Click **Generate link** to get your short subscription URL, QR code, and **One-Click Import** button.
-4. *(Optional)* Expand the **Nodes Inspector** to search, filter, or edit individual nodes.
+4. *(Optional)* Expand the **Nodes Inspector** to search, filter, **edit**, or **remove** individual nodes, then click **Save changes** to update your subscription link and QR code.
 
 ---
 

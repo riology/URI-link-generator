@@ -783,7 +783,38 @@ a:focus-visible {
 
 .inspector-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inspector-save-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inspector-save-group.hidden {
+  display: none;
+}
+
+.inspector-dirty-note {
+  font-size: 12px;
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.btn-danger {
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.btn-danger:hover {
+  background-color: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #fecaca;
 }
 
 .modal {
